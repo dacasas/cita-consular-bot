@@ -41,7 +41,7 @@ def setup_driver():
     options = webdriver.ChromeOptions()
     # Run in headless mode (no browser window opens)
     # Comment out the line below if you want to see the browser in action.
-    # options.add_argument("--headless")
+    options.add_argument("--headless=new")
     options.add_argument("--window-size=1920,1080")
         # The following options are often needed for running headless Chrome on Linux systems.
     options.add_argument("--no-sandbox") # Bypass OS security model, REQUIRED for Linux
