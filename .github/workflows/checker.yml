@@ -24,8 +24,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install selenium webdriver-manager
 
-      - name: Set up Chrome
-        uses: browser-actions/setup-chrome@v1
 
       - name: Run appointment checker
         run: python appointment_checker.py
