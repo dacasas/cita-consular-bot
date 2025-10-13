@@ -11,9 +11,9 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 # --- Configuration ---
 # The starting page where the appointment link is located.
 # San Francisco Consulate Website
-# CONSULATE_URL = "https://www.exteriores.gob.es/Consulados/sanfrancisco/es/Comunicacion/Noticias/Paginas/Articulos/Ley-de-la-memoria-democr%C3%A1tica.aspx"
+CONSULATE_URL = "https://www.exteriores.gob.es/Consulados/sanfrancisco/es/Comunicacion/Noticias/Paginas/Articulos/Ley-de-la-memoria-democr%C3%A1tica.aspx"
 # London Consulate Website
-CONSULATE_URL = "https://www.exteriores.gob.es/Consulados/londres/es/ServiciosConsulares/Paginas/CitaNacionalidadLMD.aspx"
+# CONSULATE_URL = "https://www.exteriores.gob.es/Consulados/londres/es/ServiciosConsulares/Paginas/CitaNacionalidadLMD.aspx"
 # The exact text of the link we need to click.
 LINK_TEXT = "ELEGIR FECHA Y HORA"
 # The text that appears on the appointment page when no slots are available.
@@ -40,7 +40,6 @@ def setup_driver():
     """Sets up the Selenium WebDriver for Chrome."""
     options = webdriver.ChromeOptions()
     # Run in headless mode (no browser window opens)
-    # Comment out the line below if you want to see the browser in action.
     options.add_argument("--headless=new")
     options.add_argument("--window-size=1920,1080")
         # The following options are often needed for running headless Chrome on Linux systems.
@@ -84,11 +83,10 @@ def check_for_appointments():
             print("Link found! Clicking to open the appointment page...")
             driver.execute_script("arguments[0].click();", appointment_link)
 
-            # 4. Wait for the new tab and switch to it
-            print("Waiting for new tab...")
-            wait.until(EC.number_of_windows_to_be(2))
-            driver.switch_to.window(driver.window_handles[1])
-            print(f"Switched to new tab: {driver.current_url}")
+            # SF site loads in the same window, so we wait for the iframe to appear.
+            print("Waiting for iframe to load...")
+            wait.until(EC.frame_to_be_available_and_switch_to_it((By.XPATH, "//iframe[contains(@src, 'citaconsular.es')]" )))
+            print("Switched to iframe.")
 
             # 5. Handle the welcome alert
             print("Waiting for the 'Welcome / Bienvenido' alert...")
@@ -134,8 +132,8 @@ def check_for_appointments():
                 print(", ".join(date_texts))
                 print("="*50 + "\n")
                 # Send notification
-                title = "Cita Consular Disponible!"
-                message = f"Hay citas disponibles en las siguientes fechas: {', '.join(date_texts)}"
+                title = "Cita Consular Disponible! (SF)"
+                message = f"Hay citas disponibles en San Francisco en las siguientes fechas: {', '.join(date_texts)}"
                 send_notification(title, message)
             else:
                 print("\n>>> STATUS: No dates marked as 'DISPONIBLE' were found on the calendar.")
@@ -154,7 +152,7 @@ def check_for_appointments():
 
     print("--- Failed to complete the check after 10 attempts. ---")
     # Send a notification that the script failed
-    send_notification("Error en el Bot de Citas", "El script no pudo completarse después de 10 intentos.")
+    send_notification("Error en el Bot de Citas (SF)", "El script no pudo completarse después de 10 intentos.")
 
 
 if __name__ == "__main__":
