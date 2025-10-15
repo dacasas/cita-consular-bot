@@ -81,19 +81,19 @@ def check_for_appointments():
                 EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, LINK_TEXT))
             )
             print("Link found! Clicking to open the appointment page...")
-            driver.execute_script("arguments[0].click();", appointment_link)
-
-            # SF site loads in the same window, so we wait for the iframe to appear.
-            print("Waiting for iframe to load...")
-            wait.until(EC.frame_to_be_available_and_switch_to_it((By.XPATH, "//iframe[contains(@src, 'citaconsular.es')]" )))
-            print("Switched to iframe.")
-
-            # 5. Handle the welcome alert
-            print("Waiting for the 'Welcome / Bienvenido' alert...")
-            wait.until(EC.alert_is_present())
-            alert = driver.switch_to.alert
-            print(f"Alert found with text: '{alert.text}'. Accepting it.")
-            alert.accept()
+                        driver.execute_script("arguments[0].click();", appointment_link)
+            
+                        # 5. Handle the welcome alert
+                        print("Waiting for the 'Welcome / Bienvenido' alert...")
+                        wait.until(EC.alert_is_present())
+                        alert = driver.switch_to.alert
+                        print(f"Alert found with text: '{alert.text}'. Accepting it.")
+                        alert.accept()
+            
+                        # SF site loads in the same window, so we wait for the iframe to appear.
+                        print("Waiting for iframe to load...")
+                        wait.until(EC.frame_to_be_available_and_switch_to_it((By.XPATH, "//iframe[contains(@src, 'citaconsular.es')]")))
+                        print("Switched to iframe.")
             
             # 6. Handle the CAPTCHA page
             print("Looking for the CAPTCHA page and clicking Continue...")
