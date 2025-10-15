@@ -17,7 +17,7 @@ CONSULATE_URL = "https://www.exteriores.gob.es/Consulados/sanfrancisco/es/Comuni
 # The exact text of the link we need to click.
 LINK_TEXT = "ELEGIR FECHA Y HORA"
 # The text that appears on the appointment page when no slots are available.
-NO_APPOINTMENTS_MESSAGE = "No hay horas disponibles para el servicio seleccionado"
+NO_APPOINTMENTS_MESSAGE = "No hay horas disponibles. Inténtelo de nuevo dentro de unos días."
 # The topic for ntfy.sh notifications
 NTFY_TOPIC = "cita-alerts-f8x2y9"
 
@@ -39,15 +39,11 @@ def send_notification(title, message):
 def setup_driver():
     """Sets up the Selenium WebDriver for Chrome."""
     options = webdriver.ChromeOptions()
-    # Run in headless mode (no browser window opens)
     options.add_argument("--headless=new")
     options.add_argument("--window-size=1920,1080")
-        # The following options are often needed for running headless Chrome on Linux systems.
-    options.add_argument("--no-sandbox") # Bypass OS security model, REQUIRED for Linux
-    options.add_argument("--disable-dev-shm-usage") # Overcome limited resource problems
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-    
-    # Automatically download and manage the correct driver for Chrome
     service = ChromeService(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     return driver
@@ -55,71 +51,84 @@ def setup_driver():
 def check_for_appointments():
     """
     Main function to navigate to the consulate website and check for appointments.
-    It will retry the entire flow up to 10 times if it fails at any step.
     """
-    for i in range(10):
-        print(f"--- Starting attempt {i+1}/10 ---")
-        driver = setup_driver()
+    print(f"--- Starting San Francisco Check ---")
+    driver = setup_driver()
+    try:
+        # 1. Go to the main consulate page
+        print(f"Navigating to: {CONSULATE_URL}")
+        driver.get(CONSULATE_URL)
+        wait = WebDriverWait(driver, 20)
+
+        # 2. Handle the cookie consent banner
+        print("Looking for cookie banner...")
+        cookie_accept_button = wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//input[@value='Aceptar']"))
+        )
+        print("Cookie banner found. Clicking 'Aceptar' via JavaScript...")
+        driver.execute_script("arguments[0].click();", cookie_accept_button)
+        time.sleep(1)
+        
+        # 3. Find and click the main appointment link
+        print(f"Looking for link with text: '{LINK_TEXT}'")
+        appointment_link = wait.until(
+            EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, LINK_TEXT))
+        )
+        print("Link found! Clicking to open the appointment page...")
+        driver.execute_script("arguments[0].click();", appointment_link)
+
+        # 4. Handle the welcome alert
+        print("Waiting for the 'Welcome / Bienvenido' alert...")
+        wait.until(EC.alert_is_present())
+        alert = driver.switch_to.alert
+        print(f"Alert found with text: '{alert.text}'. Accepting it.")
+        alert.accept()
+        
+        # 5. Handle the CAPTCHA page
+        print("Looking for the CAPTCHA page and clicking Continue...")
+        captcha_button = wait.until(
+            EC.element_to_be_clickable((By.ID, "idCaptchaButton"))
+        )
+        captcha_button.click()
+        print("CAPTCHA page handled.")
+
+        # 6. Check for immediate "No Appointments" message
         try:
-            # 1. Go to the main consulate page
-            print(f"Navigating to: {CONSULATE_URL}")
-            driver.get(CONSULATE_URL)
-            wait = WebDriverWait(driver, 20)
+            print("Checking for immediate 'No Appointments' message...")
+            short_wait = WebDriverWait(driver, 5)
+            short_wait.until(EC.presence_of_element_located((By.XPATH, f"//*[contains(text(), '{NO_APPOINTMENTS_MESSAGE}')]")))
+            print("STATUS: No appointments available.")
+            send_notification("Citas SF: No Disponibles", "No hay citas disponibles en este momento.")
+            return
+        except TimeoutException:
+            print("Immediate 'No Appointments' message not found. Proceeding...")
 
-            # 2. Handle the cookie consent banner
-            print("Looking for cookie banner...")
-            cookie_accept_button = wait.until(
-                EC.element_to_be_clickable((By.XPATH, "//input[@value='Aceptar']"))
-            )
-            print("Cookie banner found. Clicking 'Aceptar' via JavaScript...")
-            driver.execute_script("arguments[0].click();", cookie_accept_button)
-            time.sleep(1)
-            
-            # 3. Find and click the main appointment link
-            print(f"Looking for link with text: '{LINK_TEXT}'")
-            appointment_link = wait.until(
-                EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, LINK_TEXT))
-            )
-            print("Link found! Clicking to open the appointment page...")
-                        driver.execute_script("arguments[0].click();", appointment_link)
-            
-                        # 5. Handle the welcome alert
-                        print("Waiting for the 'Welcome / Bienvenido' alert...")
-                        wait.until(EC.alert_is_present())
-                        alert = driver.switch_to.alert
-                        print(f"Alert found with text: '{alert.text}'. Accepting it.")
-                        alert.accept()
-            
-                        # SF site loads in the same window, so we wait for the iframe to appear.
-                        print("Waiting for iframe to load...")
-                        wait.until(EC.frame_to_be_available_and_switch_to_it((By.XPATH, "//iframe[contains(@src, 'citaconsular.es')]")))
-                        print("Switched to iframe.")
-            
-            # 6. Handle the CAPTCHA page
-            print("Looking for the CAPTCHA page and clicking Continue...")
-            captcha_button = wait.until(
-                EC.element_to_be_clickable((By.ID, "idCaptchaButton"))
-            )
-            captcha_button.click()
-            print("CAPTCHA page handled.")
-
-            # 7. Handle the Intermediate "Importante" Dialog
+        # 7. Handle the Intermediate "Importante" Dialog
+        try:
             print("Looking for the 'Importante' dialog and clicking ACEPTAR...")
             accept_button = wait.until(
                 EC.element_to_be_clickable((By.ID, "bktContinue"))
             )
             accept_button.click()
             print("'Importante' dialog accepted.")
+        except TimeoutException:
+            send_notification("Error en Bot (SF)", "Timed out at 'Importante' dialog.")
+            raise
 
-            # 8. Click the Service Link
+        # 8. Click the Service Link
+        try:
             print("Looking for the service link...")
             service_link = wait.until(
                 EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "PRESENTACIÓN DE DOCUMENTACIÓN"))
             )
             service_link.click()
             print("Service link clicked.")
+        except TimeoutException:
+            send_notification("Error en Bot (SF)", "Timed out at Service Link.")
+            raise
 
-            # 9. Check for available dates on the calendar
+        # 9. Check for available dates on the calendar
+        try:
             print("\n>>> Checking for available dates on the calendar...")
             available_dates = wait.until(
                 EC.presence_of_all_elements_located((By.XPATH, "//td[@title='DISPONIBLE']/a"))
@@ -131,28 +140,24 @@ def check_for_appointments():
                 print(">>> SUCCESS! Appointments are available on the following dates:")
                 print(", ".join(date_texts))
                 print("="*50 + "\n")
-                # Send notification
                 title = "Cita Consular Disponible! (SF)"
                 message = f"Hay citas disponibles en San Francisco en las siguientes fechas: {', '.join(date_texts)}"
                 send_notification(title, message)
             else:
                 print("\n>>> STATUS: No dates marked as 'DISPONIBLE' were found on the calendar.")
-            
-            # If we've gotten this far, the check was successful.
-            print("--- Check completed successfully! ---")
-            return
-
+                send_notification("Citas SF: Calendario Vacío", "No se encontraron fechas disponibles en el calendario.")
         except TimeoutException:
-            print(f"Attempt {i+1} timed out. Retrying...")
-        except Exception as e:
-            print(f"Attempt {i+1} failed with an unexpected error: {e}. Retrying...")
-        finally:
-            print("--- Cleaning up attempt. ---")
-            driver.quit()
+            send_notification("Error en Bot (SF)", "Timed out at Calendar check.")
+            raise
+        
+        print("--- Check completed successfully! ---")
 
-    print("--- Failed to complete the check after 10 attempts. ---")
-    # Send a notification that the script failed
-    send_notification("Error en el Bot de Citas (SF)", "El script no pudo completarse después de 10 intentos.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        # The detailed error is now sent in the specific timeout blocks
+    finally:
+        print("--- Closing browser. ---")
+        driver.quit()
 
 
 if __name__ == "__main__":
