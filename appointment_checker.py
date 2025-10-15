@@ -98,7 +98,6 @@ def check_for_appointments():
             short_wait = WebDriverWait(driver, 5)
             short_wait.until(EC.presence_of_element_located((By.XPATH, f"//*[contains(text(), '{NO_APPOINTMENTS_MESSAGE}')]")))
             print("STATUS: No appointments available.")
-            send_notification("Citas SF: No Disponibles", "No hay citas disponibles en este momento.")
             return
         except TimeoutException:
             print("Immediate 'No Appointments' message not found. Proceeding...")
