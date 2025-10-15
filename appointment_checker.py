@@ -62,20 +62,14 @@ def check_for_appointments():
 
         # 2. Handle the cookie consent banner
         print("Looking for cookie banner...")
-        cookie_accept_button = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@value='Aceptar']"))
-        )
-        print("Cookie banner found. Clicking 'Aceptar' via JavaScript...")
-        driver.execute_script("arguments[0].click();", cookie_accept_button)
+        wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@value='Aceptar']"))).click()
+        print("Cookie banner found and clicked.")
         time.sleep(1)
         
         # 3. Find and click the main appointment link
         print(f"Looking for link with text: '{LINK_TEXT}'")
-        appointment_link = wait.until(
-            EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, LINK_TEXT))
-        )
-        print("Link found! Clicking to open the appointment page...")
-        driver.execute_script("arguments[0].click();", appointment_link)
+        wait.until(EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, LINK_TEXT))).click()
+        print("Link found and clicked.")
 
         # 4. Handle the welcome alert
         print("Waiting for the 'Welcome / Bienvenido' alert...")
@@ -86,10 +80,7 @@ def check_for_appointments():
         
         # 5. Handle the CAPTCHA page
         print("Looking for the CAPTCHA page and clicking Continue...")
-        captcha_button = wait.until(
-            EC.element_to_be_clickable((By.ID, "idCaptchaButton"))
-        )
-        captcha_button.click()
+        wait.until(EC.element_to_be_clickable((By.ID, "idCaptchaButton"))).click()
         print("CAPTCHA page handled.")
 
         # 6. Check for immediate "No Appointments" message
@@ -98,62 +89,48 @@ def check_for_appointments():
             short_wait = WebDriverWait(driver, 5)
             short_wait.until(EC.presence_of_element_located((By.XPATH, f"//*[contains(text(), '{NO_APPOINTMENTS_MESSAGE}')]")))
             print("STATUS: No appointments available.")
-            return
+            return # Exit gracefully, no notification needed
         except TimeoutException:
             print("Immediate 'No Appointments' message not found. Proceeding...")
 
         # 7. Handle the Intermediate "Importante" Dialog
-        try:
-            print("Looking for the 'Importante' dialog and clicking ACEPTAR...")
-            accept_button = wait.until(
-                EC.element_to_be_clickable((By.ID, "bktContinue"))
-            )
-            accept_button.click()
-            print("'Importante' dialog accepted.")
-        except TimeoutException:
-            send_notification("Error en Bot (SF)", "Timed out at 'Importante' dialog.")
-            raise
+        print("Looking for the 'Importante' dialog and clicking ACEPTAR...")
+        wait.until(EC.element_to_be_clickable((By.ID, "bktContinue"))).click()
+        print("'Importante' dialog accepted.")
 
         # 8. Click the Service Link
-        try:
-            print("Looking for the service link...")
-            service_link = wait.until(
-                EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "PRESENTACIÓN DE DOCUMENTACIÓN"))
-            )
-            service_link.click()
-            print("Service link clicked.")
-        except TimeoutException:
-            send_notification("Error en Bot (SF)", "Timed out at Service Link.")
-            raise
+        print("Looking for the service link...")
+        wait.until(EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "PRESENTACIÓN DE DOCUMENTACIÓN"))).click()
+        print("Service link clicked.")
 
         # 9. Check for available dates on the calendar
-        try:
-            print("\n>>> Checking for available dates on the calendar...")
-            available_dates = wait.until(
-                EC.presence_of_all_elements_located((By.XPATH, "//td[@title='DISPONIBLE']/a"))
-            )
+        print("\n>>> Checking for available dates on the calendar...")
+        available_dates = wait.until(
+            EC.presence_of_all_elements_located((By.XPATH, "//td[@title='DISPONIBLE']/a"))
+        )
 
-            if available_dates:
-                date_texts = [date_element.get_attribute('textContent') for date_element in available_dates]
-                print("\n" + "="*50)
-                print(">>> SUCCESS! Appointments are available on the following dates:")
-                print(", ".join(date_texts))
-                print("="*50 + "\n")
-                title = "Cita Consular Disponible! (SF)"
-                message = f"Hay citas disponibles en San Francisco en las siguientes fechas: {', '.join(date_texts)}"
-                send_notification(title, message)
-            else:
-                print("\n>>> STATUS: No dates marked as 'DISPONIBLE' were found on the calendar.")
-                send_notification("Citas SF: Calendario Vacío", "No se encontraron fechas disponibles en el calendario.")
-        except TimeoutException:
-            send_notification("Error en Bot (SF)", "Timed out at Calendar check.")
-            raise
+        if available_dates:
+            date_texts = [date_element.get_attribute('textContent') for date_element in available_dates]
+            print("\n" + "="*50)
+            print(">>> SUCCESS! Appointments are available on the following dates:")
+            print(", ".join(date_texts))
+            print("="*50 + "\n")
+            title = "Cita Consular Disponible! (SF)"
+            message = f"Hay citas disponibles en San Francisco en las siguientes fechas: {', '.join(date_texts)}"
+            send_notification(title, message)
+        else:
+            print("\n>>> STATUS: No dates marked as 'DISPONIBLE' were found on the calendar.")
+            send_notification("Citas SF: Calendario Vacío", "No se encontraron fechas disponibles en el calendario.")
         
         print("--- Check completed successfully! ---")
 
+    except TimeoutException as e:
+        # This will catch a timeout from any of the steps above
+        print(f"A step timed out. The website may be down or have changed. Error: {e}")
+        send_notification("Error en Bot (SF)", "El script falló por un timeout. Revisa los logs de la Action.")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
-        # The detailed error is now sent in the specific timeout blocks
+        send_notification("Error en Bot (SF)", f"Error inesperado: {e}")
     finally:
         print("--- Closing browser. ---")
         driver.quit()
